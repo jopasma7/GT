@@ -3,16 +3,8 @@
  * Version: v1.8.1
  * Last Updated: 2022-06-27
  * Author: RedAlert
- * Author URL: https://twscripts.dev/
- * Author Contact: RedAlert#9859 (Discord)
- * Approved: N/A (approved after the script approval rules change)
- * Approved Date: 2021-02-27
- * Mod: JawJaw
+ * Modified by: Black_Lottus
  */
-
-/*--------------------------------------------------------------------------------------
- * This script can NOT be cloned and modified without permission from the script author.
- --------------------------------------------------------------------------------------*/
 
 var scriptData = {
     prefix: 'singleVillageSnipe',
@@ -83,6 +75,50 @@ var translations = {
         'There was an error!': 'There was an error!',
         'Configuration has been copied!': 'Configuration has been copied!',
         'BBCode have been copied!': 'BBCode have been copied!',
+    },
+    es_ES: {
+        'Single Village Snipe': 'Snips Por Pueblo',
+        Help: 'Ayuda',
+        'This script can only be run on a single village screen!':
+            'Este script sólo puede ejecutarse en la pantalla de un pueblo.',
+        'Landing Time': 'Hora de llegada',
+        'Calculate Launch Times': 'Calcular tiempos de llegada',
+        'Export as BB Code': 'Exportar como código BB',
+        'Landing time was updated!': 'Tiempo de llegada actualizado.',
+        'Plan for:': 'Planeado para:',
+        'Landing Time:': 'Hora de Llegada:',
+        Unit: 'Unidad',
+        From: 'Desde',
+        'Launch Time': 'Hora del envío',
+        Command: 'Comando',
+        Status: 'Estado',
+        Send: 'Enviar',
+        'Error fetching village groups!': 'Error en la búsqueda de grupos de aldeas.',
+        'Choose Units to Snipe': 'Elija las unidades para el Snip',
+        Group: 'Grupo',
+        'No possible snipe options found!': 'No se ha encontrado ninguna opción de Snip posible.',
+        Distance: 'Distancia',
+        'An error occured while fetching troop counts!':
+            'Se ha producido un error al obtener el recuento de tropas.',
+        'snipe attempts found': 'Intentos de Snip encontrados!',
+        'Nothing to export!': 'Nada para exportar.',
+        'Target:': 'Objetivo:',
+        'Send in': 'Enviar en',
+        'Destination Village': 'Pueblo de destino',
+        Sigil: 'Sigilo',
+        'Min. Amount': 'Cantidad Mínima',
+        'Export Config': 'Exportar Config',
+        'Import Config': 'Importar Config',
+        'Configuration imported successfully!':
+            'Configuración importada satisfactoriamente.',
+        'Nothing to import!': 'Nada para importar',
+        'There was an error fetching villages by group!':
+            'Se ha producido un error en la búsqueda de pueblos por grupos.',
+        'Reset Chosen Group': 'Restablecer el grupo elegido',
+        'Chosen group was reset!': 'Grupo elegido reseteado',
+        'There was an error!': '¡Ha habido un error!',
+        'Configuration has been copied!': 'La configuración se ha copiado.',
+        'BBCode have been copied!': 'Se han copiado los códigos BB',
     },
     it_IT: {
         'Single Village Snipe': 'Snipe Singolo Villaggio',
@@ -1317,7 +1353,7 @@ function tt(string) {
     if (translations[gameLocale] !== undefined) {
         return translations[gameLocale][string];
     } else {
-        return translations['en_DK'][string];
+        return translations['es_ES'][string];
     }
 }
 
