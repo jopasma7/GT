@@ -27,17 +27,29 @@ var apoyo_simple = "";
 var apoyo_total = "";
 
 if (document.URL.match("screen=info_village")) {
-    $("#commands_outgoings").find("tr").eq(0).find("th").last().after('<th style="white-space: nowrap; width: 150px; text-align: center;">Tropas</th>');
-    $("#commands_outgoings").find("tr").eq(0).find("th").last().after('<th style="white-space: nowrap; width: 150px; text-align: center;">Total de Apoyos</th>');
-    let collection =  document.getElementById("commands_outgoings").getElementsByClassName("command-row");
-    //let content = document.querySelectorAll(".command-row .quickedit .quickedit-content , .command-row .quickedit-out .quickedit-content");
-
+    
+    let collection = [];
+    let incomings = true;
+    if($("#commands_incomings").length != 0){
+        $("#commands_incomings").find("tr").eq(0).find("th").last().after('<th style="white-space: nowrap; width: 150px; text-align: center;">Tropas</th>');
+        $("#commands_incomings").find("tr").eq(0).find("th").last().after('<th style="white-space: nowrap; width: 150px; text-align: center;">Total de Apoyos</th>');
+        collection =  document.getElementById("commands_incomings").getElementsByClassName("command-row");
+    }
+    
+    if($("#commands_outgoings").length != 0){
+        $("#commands_outgoings").find("tr").eq(0).find("th").last().after('<th style="white-space: nowrap; width: 150px; text-align: center;">Tropas</th>');
+        $("#commands_outgoings").find("tr").eq(0).find("th").last().after('<th style="white-space: nowrap; width: 150px; text-align: center;">Total de Apoyos</th>');
+        collection =  document.getElementById("commands_outgoings").getElementsByClassName("command-row");
+        incomings = false;
+    }
+    
     for (let i = 0; i < collection.length; i++) {
 
         // Revisa si es un apoyo:
         var iconos = collection[i].getElementsByClassName('icon-container')[0];
 
         // Revisa si está regresando
+        if($(collection[i]).find('.command_hover_details')[0] == undefined) continue;
         var returning = $(collection[i]).find('.command_hover_details')[0].dataset.commandType; // Revisa si el ataque está volviendo.
         
         if(returning == "back" || !iconos.getElementsByClassName('command_hover_details')[0].dataset.iconHint.match(/Apoyo/i)){
@@ -50,17 +62,16 @@ if (document.URL.match("screen=info_village")) {
 
         var simpleValue = apoyo_simple;
         var totalValue = apoyo_total;
-    
-        var cuadrito = $("#commands_outgoings").find("tr").eq(i+1).find("td").last().after(simpleValue);
-        var cuadrito = $("#commands_outgoings").find("tr").eq(i+1).find("td").last().last().after(totalValue);
+        
+        if(incomings){
+            var cuadrito = $("#commands_incomings").find("tr").eq(i+1).find("td").last().after(simpleValue);
+            var cuadrito = $("#commands_incomings").find("tr").eq(i+1).find("td").last().last().after(totalValue);
+        }else{
+            var cuadrito = $("#commands_outgoings").find("tr").eq(i+1).find("td").last().after(simpleValue);
+            var cuadrito = $("#commands_outgoings").find("tr").eq(i+1).find("td").last().last().after(totalValue);
+        }
+        
     }
-
-    /*
-    var link = collection[6].querySelector('a').href;
-    var value = calculate(link);
-    var cuadrito = $("#commands_outgoings").find("tr").eq(6+1).find("td").last().after(value);
-    */
-
 }
 
 // Accede al ataque y revisa las tropas. Las calcula y cambia el nombre al ataque.
