@@ -1,7 +1,7 @@
 from funciones.market import *
 from datetime import datetime
 import utils.config
-from funciones.bans import cargar_bans_global, check_ban_jugador
+from funciones.bans import cargar_bans_global, check_ban_jugador, check_ban_jugador_completo
 
 def analisis_snob(registro):
     from funciones.extra import color_texto
@@ -24,27 +24,50 @@ def analisis_snob(registro):
     jugadores_ordenados = sorted(jugadores.items(), key=lambda x: len(x[1]), reverse=True)[:20]
     global_bans = cargar_bans_global()
 
+    # 🚀 OPTIMIZACIÓN EXTREMA: Pre-procesar TODOS los estados de ban de una vez (súper rápido)
+    print(color_texto("🔍 Verificando estados de ban...", "azul"))  # Indicador de progreso
+    from funciones.bans import obtener_estados_ban_masivo
+    jugadores_lista = [jugador for jugador, _ in jugadores_ordenados]
+    estados_ban = obtener_estados_ban_masivo(jugadores_lista, global_bans)
+
     while True:
         print(color_texto("═" * 70, "azul"))
         print(color_texto("👑 Menú de registros SNOB por jugador (Top 20)", "azul"))
         print(color_texto("═" * 70, "azul"))
         for idx, (jugador, registros) in enumerate(jugadores_ordenados, 1):
-            ban_status, fecha_exp, mundo_ban = check_ban_jugador(jugador, global_bans, utils.config.WORLD)
+            # 🚀 OPTIMIZACIÓN: Usar datos ya procesados (instantáneo)
+            ban_status, fecha_exp, mundo_ban, tiene_historial = estados_ban[jugador]
+            
+            # Estados de ban activos (PELIGRO)
             if ban_status == "permanente":
                 idx_str = color_texto(str(idx), "rojo")
                 jugador_str = color_texto(jugador, "blanco")
-                ban_str = color_texto(" (BAN PERMANENTE)", "rojo")
+                ban_str = color_texto(" 🚨 BAN PERMANENTE ACTIVO", "rojo")
                 print(f"{idx_str}. 👤 {jugador_str} tiene {color_texto(str(len(registros)), 'amarillo')} registros SNOB.{ban_str}")
             elif ban_status == "temporal":
                 idx_str = color_texto(str(idx), "amarillo")
                 jugador_str = color_texto(jugador, "blanco")
-                ban_str = color_texto(f" (BAN TEMPORAL → {fecha_exp})", "amarillo")
+                ban_str = color_texto(f" ⚠️ BAN TEMPORAL ACTIVO → {fecha_exp}", "amarillo")
                 print(f"{idx_str}. 👤 {jugador_str} tiene {color_texto(str(len(registros)), 'amarillo')} registros SNOB.{ban_str}")
             elif ban_status == "otro_mundo":
                 idx_str = color_texto(str(idx), "magenta")
                 jugador_str = color_texto(jugador, "blanco")
-                ban_str = color_texto(f" (BAN OTRO MUNDO → {mundo_ban})", "magenta")
+                ban_str = color_texto(f" 🌍 BAN ACTIVO EN {mundo_ban}", "magenta")
                 print(f"{idx_str}. 👤 {jugador_str} tiene {color_texto(str(len(registros)), 'amarillo')} registros SNOB.{ban_str}")
+            # Solo historial previo (ALERTA) - PERO puede incluir baneos activos
+            elif tiene_historial:
+                from funciones.bans import generar_mensaje_historial_baneos, obtener_color_mensaje_ban, obtener_color_indice_ban
+                mensaje_historial = generar_mensaje_historial_baneos(jugador, global_bans, utils.config.WORLD)
+                
+                # Determinar colores según el tipo de mensaje
+                color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
+                color_indice = obtener_color_indice_ban(mensaje_historial)
+                
+                idx_str = color_texto(str(idx), color_indice)
+                jugador_str = color_texto(jugador, "blanco")
+                ban_str = color_texto(f" {mensaje_historial}", color_mensaje)
+                print(f"{idx_str}. 👤 {jugador_str} tiene {color_texto(str(len(registros)), 'amarillo')} registros SNOB.{ban_str}")
+            # Sin baneos
             else:
                 idx_str = color_texto(str(idx), "verde")
                 jugador_str = color_texto(jugador, "blanco")

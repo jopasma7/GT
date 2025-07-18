@@ -2,7 +2,7 @@ import re, os
 import utils.config
 from collections import defaultdict
 from funciones.extra import color_texto
-from funciones.bans import obtener_historial_baneos_jugador, check_ban_jugador, cargar_bans_global
+from funciones.bans import obtener_historial_baneos_jugador, check_ban_jugador, cargar_bans_global, check_ban_jugador_completo
 
 # Al principio del archivo (zona global)
 cache_estado_ban = {}
@@ -128,8 +128,8 @@ def analizar_coincidencias_global(archivo_registro=None):
 
     estado_ban_jugadores = {}
     for jugador in jugadores:
-        ban_status, fecha_exp, mundo_ban = check_ban_jugador(jugador, global_bans, utils.config.WORLD)
-        estado_ban_jugadores[jugador] = (ban_status, fecha_exp, mundo_ban)
+        ban_status, fecha_exp, mundo_ban, tiene_historial = check_ban_jugador_completo(jugador, global_bans, utils.config.WORLD)
+        estado_ban_jugadores[jugador] = (ban_status, fecha_exp, mundo_ban, tiene_historial)
 
     while True:
         os.system("cls" if os.name == "nt" else "clear")
@@ -138,13 +138,24 @@ def analizar_coincidencias_global(archivo_registro=None):
         print(color_texto("═" * 60, "azul"))
         for idx, jugador in enumerate(jugadores, 1):
             n = len(coincidencias_por_jugador[jugador])
-            ban_status, fecha_exp, mundo_ban = estado_ban_jugadores.get(jugador, (None, None, None))
+            ban_status, fecha_exp, mundo_ban, tiene_historial = estado_ban_jugadores.get(jugador, (None, None, None, False))
+            
+            # Estados de ban activos (PELIGRO)
             if ban_status == "permanente":
-                print(f"{color_texto(str(idx), 'rojo')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto('(BAN PERMANENTE)', 'rojo')}")
+                print(f"{color_texto(str(idx), 'rojo')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto('🚨 BAN PERMANENTE ACTIVO', 'rojo')}")
             elif ban_status == "temporal":
-                print(f"{color_texto(str(idx), 'amarillo')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto(f'(BAN TEMPORAL → {fecha_exp})', 'amarillo')}")
+                print(f"{color_texto(str(idx), 'amarillo')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto(f'⚠️ BAN TEMPORAL ACTIVO → {fecha_exp}', 'amarillo')}")
             elif ban_status == "otro_mundo":
-                print(f"{color_texto(str(idx), 'magenta')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto(f'(BAN OTRO MUNDO → {mundo_ban})', 'magenta')}")
+                print(f"{color_texto(str(idx), 'magenta')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto(f'🌍 BAN ACTIVO EN {mundo_ban}', 'magenta')}")
+            # Solo historial previo (ALERTA) - PERO puede incluir baneos activos
+            elif tiene_historial:
+                from funciones.bans import generar_mensaje_historial_baneos, obtener_color_mensaje_ban, obtener_color_indice_ban
+                mensaje_historial = generar_mensaje_historial_baneos(jugador, global_bans, utils.config.WORLD)
+                color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
+                color_indice = obtener_color_indice_ban(mensaje_historial)
+                
+                print(f"{color_texto(str(idx), color_indice)}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''} {color_texto(mensaje_historial, color_mensaje)}")
+            # Sin baneos
             else:
                 print(f"{color_texto(str(idx), 'verde')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''}")
         print(color_texto("0. Siguiente análisis", "rojo"))

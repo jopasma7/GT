@@ -3,7 +3,7 @@ import os
 import re
 import utils.config
 from funciones.extra import color_texto
-from funciones.bans import cargar_bans_global, check_ban_jugador
+from funciones.bans import cargar_bans_global, check_ban_jugador, check_ban_jugador_completo
 
 
 
@@ -272,30 +272,54 @@ def mostrar_menu_jugadores(registros, titulo, tipo, emoji_jugador, emoji_bloque,
     ]
     jugadores_ordenados = sorted(jugadores_bloques, key=lambda x: x[2], reverse=True)[:50]
 
+    # 🚀 OPTIMIZACIÓN EXTREMA: Pre-procesar TODOS los estados de ban de una vez (súper rápido)
+    print("🔍 Verificando estados de ban...")  # Indicador de progreso
+    from funciones.bans import obtener_estados_ban_masivo
+    jugadores_lista = [jugador for jugador, _, _ in jugadores_ordenados]
+    estados_ban = obtener_estados_ban_masivo(jugadores_lista, global_bans)
+
     while True:
         print("═" * 60)
         print(f"{emoji_bloque} Menú de {titulo} por jugador (máx. 50)")
         print("═" * 60)
         for idx, (jugador, acciones, num_bloques) in enumerate(jugadores_ordenados, 1):
-            ban_status, fecha_exp, mundo_ban = check_ban_jugador(jugador, global_bans, utils.config.WORLD)
+            # 🚀 OPTIMIZACIÓN: Usar datos ya procesados (instantáneo)
+            ban_status, fecha_exp, mundo_ban, tiene_historial = estados_ban[jugador]
+            
+            # Estados de ban activos (PELIGRO)
             if ban_status == "permanente":
                 idx_str = color_texto(f"{idx}.", "rojo")
                 jugador_str = color_texto(f"{emoji_jugador} {jugador}", "blanco")
                 bloques_str = color_texto(f"{emoji_bloque} {num_bloques} bloques de {tipo}", color_bloque)
-                ban_str = color_texto(" (BAN PERMANENTE)", "rojo")
+                ban_str = color_texto(" 🚨 BAN PERMANENTE ACTIVO", "rojo")
                 print(f"{idx_str} {jugador_str} {bloques_str}{ban_str}")
             elif ban_status == "temporal":
                 idx_str = color_texto(f"{idx}.", "amarillo")
                 jugador_str = color_texto(f"{emoji_jugador} {jugador}", "blanco")
                 bloques_str = color_texto(f"{emoji_bloque} {num_bloques} bloques de {tipo}", color_bloque)
-                ban_str = color_texto(f" (BAN TEMPORAL → {fecha_exp})", "amarillo")
+                ban_str = color_texto(f" ⚠️ BAN TEMPORAL ACTIVO → {fecha_exp}", "amarillo")
                 print(f"{idx_str} {jugador_str} {bloques_str}{ban_str}")
             elif ban_status == "otro_mundo":
                 idx_str = color_texto(f"{idx}.", "magenta")
                 jugador_str = color_texto(f"{emoji_jugador} {jugador}", "blanco")
                 bloques_str = color_texto(f"{emoji_bloque} {num_bloques} bloques de {tipo}", color_bloque)
-                ban_str = color_texto(f" (BAN OTRO MUNDO → {mundo_ban})", "magenta")
+                ban_str = color_texto(f" 🌍 BAN ACTIVO EN {mundo_ban}", "magenta")
                 print(f"{idx_str} {jugador_str} {bloques_str}{ban_str}")
+            # Solo historial previo (ALERTA) - PERO puede incluir baneos activos
+            elif tiene_historial:
+                from funciones.bans import generar_mensaje_historial_baneos, obtener_color_mensaje_ban, obtener_color_indice_ban
+                mensaje_historial = generar_mensaje_historial_baneos(jugador, global_bans, utils.config.WORLD)
+                
+                # Determinar colores según el tipo de mensaje
+                color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
+                color_indice = obtener_color_indice_ban(mensaje_historial)
+                
+                idx_str = color_texto(f"{idx}.", color_indice)
+                jugador_str = color_texto(f"{emoji_jugador} {jugador}", "blanco")
+                bloques_str = color_texto(f"{emoji_bloque} {num_bloques} bloques de {tipo}", color_bloque)
+                ban_str = color_texto(f" {mensaje_historial}", color_mensaje)
+                print(f"{idx_str} {jugador_str} {bloques_str}{ban_str}")
+            # Sin baneos
             else:
                 idx_str = color_texto(f"{idx}.", color_idx)
                 jugador_str = color_texto(f"{emoji_jugador} {jugador}", "blanco")
