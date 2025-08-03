@@ -492,6 +492,7 @@ def generar_mensaje_historial_baneos(nombre_jugador, global_bans=None, mundo_act
                         'fecha': ban.get('date', 'Sin fecha'),
                         'tipo': 'Perm.' if ban.get('unban_date') == 'Perm.' else 'Temp.',
                         'razon': motivo_especifico,
+                        'admin': ban.get('admin', 'admin desconocido'),
                         'estado': ban.get('estado', 'expirado'),
                         'num': num,
                         'prioridad': obtener_prioridad_motivo(motivo_especifico)
@@ -513,14 +514,14 @@ def generar_mensaje_historial_baneos(nombre_jugador, global_bans=None, mundo_act
             ban_mas_grave = max(baneos_activos_actual, key=lambda x: x['prioridad'])
             
             if ban_mas_grave['tipo'] == 'Perm.':
-                return f"🚨 BAN PERMANENTE ACTIVO ({ban_mas_grave['razon']})"
+                return f"🚨 BAN PERMANENTE ACTIVO ({ban_mas_grave['razon']}) por {ban_mas_grave['admin']}"
             else:
                 # Extraer fecha de expiración
                 try:
                     fecha_exp = ban_mas_grave['fecha'].split(' ')[0] if ban_mas_grave['fecha'] != 'Sin fecha' else 'fecha inválida'
                 except:
                     fecha_exp = 'fecha inválida'
-                return f"⚠️ BAN TEMPORAL ACTIVO → {fecha_exp} ({ban_mas_grave['razon']})"
+                return f"⚠️ BAN TEMPORAL ACTIVO → {fecha_exp} ({ban_mas_grave['razon']}) por {ban_mas_grave['admin']}"
     
     # 2. VERIFICAR BAN ACTIVO EN OTROS MUNDOS
     baneos_otros_mundos = []
@@ -533,7 +534,7 @@ def generar_mensaje_historial_baneos(nombre_jugador, global_bans=None, mundo_act
     if baneos_otros_mundos:
         # Elegir el más grave de otros mundos
         mundo_ban, ban_grave = max(baneos_otros_mundos, key=lambda x: x[1]['prioridad'])
-        return f"🌍 BAN ACTIVO EN {mundo_ban.upper()} ({ban_grave['razon']})"
+        return f"🌍 BAN ACTIVO EN {mundo_ban.upper()} ({ban_grave['razon']}) por {ban_grave['admin']}"
     
     # 3. SOLO HISTORIAL (todos los baneos están expirados)
     todos_baneos = []
@@ -545,7 +546,7 @@ def generar_mensaje_historial_baneos(nombre_jugador, global_bans=None, mundo_act
     
     total_baneos = len(todos_baneos)
     if total_baneos == 1:
-        return f"📋 HISTORIAL (1 baneo: {ban_mas_grave_historial['razon']})"
+        return f"📋 HISTORIAL (1 baneo: {ban_mas_grave_historial['razon']} por {ban_mas_grave_historial['admin']})"
     else:
         # Contar tipos
         tipos_count = {}
@@ -554,10 +555,10 @@ def generar_mensaje_historial_baneos(nombre_jugador, global_bans=None, mundo_act
         
         if len(tipos_count) == 1:
             tipo_unico = list(tipos_count.keys())[0]
-            return f"📋 HISTORIAL ({total_baneos} baneos {tipo_unico} | Más grave: {ban_mas_grave_historial['razon']})"
+            return f"📋 HISTORIAL ({total_baneos} baneos {tipo_unico} | Más grave: {ban_mas_grave_historial['razon']} por {ban_mas_grave_historial['admin']})"
         else:
             tipos_str = ", ".join([f"{count} {tipo}" for tipo, count in tipos_count.items()])
-            return f"📋 HISTORIAL ({total_baneos} baneos: {tipos_str} | Más grave: {ban_mas_grave_historial['razon']})"
+            return f"📋 HISTORIAL ({total_baneos} baneos: {tipos_str} | Más grave: {ban_mas_grave_historial['razon']} por {ban_mas_grave_historial['admin']})"
 
 def extraer_motivo_ban(ban):
     """
