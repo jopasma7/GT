@@ -38,7 +38,21 @@ def descargar_pagina_stealth(session, url, headers, es_post=False, post_data=Non
         base_max=STEALTH_CONFIG["max_delay"]
     )
     print(color_texto(f"⏳ Pausa humana: {delay:.1f}s (request #{_request_count})", "gris"))
-    time.sleep(delay)
+    
+    # Pausa interruptible que permite cancelación con Enter
+    inicio_pausa = time.time()
+    while time.time() - inicio_pausa < delay:
+        # Verificar cancelación cada 0.1 segundos
+        try:
+            import msvcrt
+            if msvcrt.kbhit():
+                key = msvcrt.getch()
+                if key == b'\r':  # Enter
+                    print(color_texto("⚠️ Cancelación detectada durante pausa", "amarillo"))
+                    return None  # Señal de cancelación
+        except ImportError:
+            pass  # No disponible en sistemas no Windows
+        time.sleep(0.1)  # Pausa pequeña para no saturar CPU
     
     # Verificar si necesita descanso de sesión
     session_break_check(_request_count, STEALTH_CONFIG["max_consecutive_requests"])
@@ -219,6 +233,10 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                     html = response.text  # Usar la respuesta del POST inicial
                 else:
                     resp = descargar_pagina_stealth(session, url, HEADERS)
+                    # Verificar si se canceló durante la pausa
+                    if resp is None:
+                        print(color_texto("⚠️ Descarga cancelada durante pausa", "amarillo"))
+                        return -2  # Señal especial para cancelación durante pausa
                     html = resp.text
                     
                 # Verificar cancelación después de descarga
@@ -261,8 +279,23 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                 else:
                     registros_a_guardar = [linea + "\n" for linea in lineas if linea not in lineas_existentes]
                 if registros_a_guardar:
-                    # Se guardaron registros - resetear contador de páginas sin registros
-                    paginas_sin_registros_consecutivas = 0
+                    # Determinar si es una página completa o parcial
+                    registros_guardados = len(registros_a_guardar)
+                    es_pagina_completa = registros_guardados >= 950  # Margen para páginas casi completas
+                    
+                    if es_pagina_completa:
+                        # Página completa - resetear contador de páginas sin registros
+                        paginas_sin_registros_consecutivas = 0
+                    else:
+                        # Página parcial - incrementar contador pero continuar
+                        paginas_sin_registros_consecutivas += 1
+                        print(color_texto(f"ℹ️  Página {idx+1}: Registros parciales ({registros_guardados} guardados) - Consecutivas con pocos registros: {paginas_sin_registros_consecutivas}/{max_paginas_sin_registros}", "naranja"))
+                        
+                        # Auto-cancelar si hay muchas páginas con pocos registros
+                        if paginas_sin_registros_consecutivas >= max_paginas_sin_registros:
+                            print(color_texto(f"\n🔄 Auto-cancelación: {max_paginas_sin_registros} páginas consecutivas con pocos registros nuevos", "amarillo"))
+                            print(color_texto("💡 Los siguientes registros probablemente ya están guardados", "cian"))
+                            return -1  # Señal especial para cancelar
                     
                     os.makedirs(os.path.dirname(archivo_registro), exist_ok=True)
                     with open(archivo_registro, "a", encoding="utf-8") as f:
@@ -345,6 +378,11 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
             # Verificar auto-cancelación por demasiadas páginas sin registros
             if resultado == -1:
                 print(color_texto("\n🔄 Descarga auto-cancelada: Los siguientes registros ya están guardados", "amarillo"))
+                break
+            
+            # Verificar cancelación durante pausa
+            if resultado == -2:
+                print(color_texto("\n⚠️ Descarga cancelada durante pausa por el usuario", "amarillo"))
                 break
             
             # Verificar cancelación después de procesar cada página

@@ -148,12 +148,39 @@ def mostrar_info_jugador(html):
     # 🚫 INFORMACIÓN DE BANEOS
     if nombre:
         try:
+            from funciones.bans import obtener_historial_baneos_jugador
             global_bans = cargar_bans_global()
-            mensaje_historial = generar_mensaje_historial_baneos(nombre, global_bans, utils.config.WORLD)
-            color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
             
-            # Mostrar información de baneos con el color apropiado
-            print(f"  🚫 Baneos: {color_texto(mensaje_historial, color_mensaje)}")
+            # Obtener historial completo de baneos
+            historial_baneos = obtener_historial_baneos_jugador(nombre, solo_activos=False, incluir_mundo_en_datos=True, global_bans=global_bans)
+            
+            if historial_baneos:
+                print(f"  🚫 Baneos: {color_texto(f'{len(historial_baneos)} baneos encontrados', 'rojo')}")
+                print("     " + color_texto("📋 HISTORIAL DE BANEOS DETALLADO:", "rojo"))
+                for i, ban in enumerate(historial_baneos[:5], 1):  # Mostrar máximo 5 baneos
+                    mundo = ban.get('Mundo', 'N/A')
+                    fecha = ban.get('date', 'N/A')
+                    unban = ban.get('unban_date', 'N/A')
+                    tipo = ban.get('bantype', 'N/A')
+                    motivo = ban.get('reason', 'N/A')
+                    admin = ban.get('admin', 'N/A')
+                    estado = ban.get('estado', 'N/A')
+                    
+                    color_estado = "rojo" if estado == "activo" else "amarillo"
+                    print(f"     {i}. {color_texto(f'[{mundo}]', 'cian')} {color_texto(estado.upper(), color_estado)} - {fecha}")
+                    print(f"        Tipo: {tipo} | Motivo: {motivo}")
+                    if admin != 'N/A':
+                        print(f"        Admin: {admin}")
+                    if unban != 'N/A':
+                        print(f"        Unban: {unban}")
+                    print()
+                
+                if len(historial_baneos) > 5:
+                    print(f"     {color_texto(f'... y {len(historial_baneos) - 5} baneos más', 'gris')}")
+            else:
+                mensaje_historial = generar_mensaje_historial_baneos(nombre, global_bans, utils.config.WORLD)
+                color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
+                print(f"  🚫 Baneos: {color_texto(mensaje_historial, color_mensaje)}")
         except Exception as e:
             print(f"  🚫 Baneos: {color_texto('Error al verificar baneos', 'gris')}")
     
@@ -180,22 +207,59 @@ def mostrar_info_jugador(html):
         headers = [th.get_text(strip=True) for th in tabla_cookies.find_all("th")]
         ancho_col = [max(len(h), 12) for h in headers]
         filas = []
+        cookies_compartidas = []
+        
         for tr in tabla_cookies.find_all("tr")[1:]:
             tds = tr.find_all("td")
             if tds:
                 fila = [td.get_text(" ", strip=True) for td in tds]
                 filas.append(fila)
+                
+                # Verificar si hay cookies compartidas (Players with cookie > 1)
+                if len(fila) >= 3:  # Asumiendo: Cookie | Logins | Players with cookie | ...
+                    try:
+                        players_con_cookie = int(fila[2])
+                        if players_con_cookie > 1:
+                            cookies_compartidas.append((fila[0], players_con_cookie))
+                    except (ValueError, IndexError):
+                        pass
+                
                 for i, valor in enumerate(fila):
                     if i < len(ancho_col):
                         ancho_col[i] = max(ancho_col[i], len(valor))
-        # Imprimir encabezados
+        
+        # Mostrar alerta si hay cookies compartidas
+        if cookies_compartidas:
+            print()
+            print(color_texto("🚨" * 20, "rojo"))
+            print(color_texto("⚠️  ¡ALERTA DE COOKIES COMPARTIDAS!", "rojo"))
+            print(color_texto("🚨" * 20, "rojo"))
+            print(color_texto("🔍 Se detectaron cookies usadas por múltiples jugadores:", "amarillo"))
+            for cookie_id, num_players in cookies_compartidas:
+                print(color_texto(f"   🍪 Cookie {cookie_id}: {num_players} jugadores diferentes", "rojo"))
+            print(color_texto("💡 Esto puede indicar cuentas múltiples o uso compartido", "amarillo"))
+            print(color_texto("🔴 Revisar estas cookies cuidadosamente", "rojo"))
+            print()
+        
+        # Imprimir tabla de cookies
         encabezado = " | ".join(h.ljust(ancho_col[i]) for i, h in enumerate(headers))
         print("─" * len(encabezado))
         print(encabezado)
         print("─" * len(encabezado))
-        # Imprimir filas
+        
+        # Imprimir filas con colores para cookies compartidas
         for fila in filas:
-            print(" | ".join(fila[i].ljust(ancho_col[i]) for i in range(len(fila))))
+            cookie_id = fila[0] if len(fila) > 0 else ""
+            es_compartida = any(cookie_id == shared_cookie for shared_cookie, _ in cookies_compartidas)
+            
+            if es_compartida:
+                # Resaltar en rojo las cookies compartidas
+                linea = " | ".join(color_texto(fila[i].ljust(ancho_col[i]), "rojo") for i in range(len(fila)))
+                print(linea)
+            else:
+                linea = " | ".join(fila[i].ljust(ancho_col[i]) for i in range(len(fila)))
+                print(linea)
+        
         print("─" * len(encabezado))
         print("\n🔍 Puedes usar esta información para buscar incidencias específicas del jugador.")
         print(" Si necesitas más detalles, usa el ID del jugador para buscar en el registro global.")
@@ -255,7 +319,6 @@ def menu_player(player_name=None):
             input(color_texto("🔚 Análisis completo finalizado. Pulsa Enter para continuar...", "azul"))
         elif opcion == "2":
             analizar_coincidencias_simple(utils.config.get_registro_simple())
-            input(color_texto("🔚 Análisis de coincidencias finalizado. Pulsa Enter para continuar...", "azul"))
         elif opcion == "3":
             analizar_farmeos()
             input(color_texto("🔚 Análisis de granjeos finalizado. Pulsa Enter para continuar...", "azul"))

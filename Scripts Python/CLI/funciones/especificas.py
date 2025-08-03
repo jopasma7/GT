@@ -222,11 +222,17 @@ def analisis_acciones_especificas():
             for idx, (reg1, reg2) in enumerate(repeticiones, 1):
                 fecha1, accion1, cid1, _ = reg1
                 fecha2, accion2, cid2, _ = reg2
-                # Formato h/m/s bonito
-                h = int(patron_sel // 3600)
-                m = int((patron_sel % 3600) // 60)
-                s = int(patron_sel % 60)
+                
+                # Calcular tiempo REAL entre las dos acciones
+                tiempo_real = int((fecha2 - fecha1).total_seconds())
+                h = tiempo_real // 3600
+                m = (tiempo_real % 3600) // 60
+                s = tiempo_real % 60
                 patron_str = f"{h}h {m}m {s}s"
+                
+                # Combinar CID sin espacios
+                cid_combinado = f"{cid1}{cid2}"
+                
                 # Emoji por pantalla
                 emoji = "🧹" if pantalla_sel.startswith("scavenge") else "🛒" if pantalla_sel.startswith("market") else "⚙️"
                 print(
@@ -235,7 +241,7 @@ def analisis_acciones_especificas():
                     f"{fecha2.strftime('%d.%m.%y %H:%M:%S'):<20}│"
                     f"⏱️  {patron_str:<9}│"
                     f"{emoji} {pantalla_sel} > {accion2:<17}│"
-                    f"🆔 {str(cid2):<17}"
+                    f"🆔 {cid_combinado}"
                 )
         else:
             print(color_texto("No se encontraron repeticiones exactas del patrón en los registros.", "rojo"))
@@ -473,10 +479,21 @@ def otros_analisis():
                 partes2 = linea2.split('\t')
                 accion2 = partes2[4] if len(partes2) > 4 else ""
                 cid2 = partes2[6] if len(partes2) > 6 else ""
-                h = int(patron_sel // 3600)
-                m = int((patron_sel % 3600) // 60)
-                s = int(patron_sel % 60)
+                
+                # Obtener CID1 de la primera línea
+                partes1 = linea1.split('\t')
+                cid1 = partes1[6] if len(partes1) > 6 else ""
+                
+                # Calcular tiempo REAL entre las dos acciones
+                tiempo_real = int((fecha2 - fecha1).total_seconds())
+                h = tiempo_real // 3600
+                m = (tiempo_real % 3600) // 60
+                s = tiempo_real % 60
                 patron_str = f"{h}h {m}m {s}s"
+                
+                # Combinar CID sin espacios
+                cid_combinado = f"{cid1}{cid2}"
+                
                 emoji = "🧹" if pantalla_sel.startswith("scavenge") else "🛒" if pantalla_sel.startswith("market") else "⚙️"
                 print(
                     f"{str(idx)+':':<4}"
@@ -484,7 +501,7 @@ def otros_analisis():
                     f"{fecha2.strftime('%d.%m.%y %H:%M:%S'):<20}│"
                     f"⏱️  {patron_str:<9}│"
                     f"{emoji} {pantalla_sel} > {accion2:<17}│"
-                    f"🆔{str(cid2):<17}"
+                    f"🆔 {cid_combinado}"
                 )
             if len(pares) == 20:
                 print(color_texto(f"\n... y más repeticiones similares.", "gris"))
