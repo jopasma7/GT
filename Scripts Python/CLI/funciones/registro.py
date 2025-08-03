@@ -194,11 +194,13 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
 
         # Función simplificada para verificar cancelación (sin hilos)
         def verificar_cancelacion_simple():
+            nonlocal cancelacion_solicitada
             try:
                 import msvcrt
                 if msvcrt.kbhit():
                     key = msvcrt.getch()
                     if key == b'\r':  # Enter
+                        cancelacion_solicitada = True
                         return True
             except ImportError:
                 pass  # No disponible en sistemas no Windows
@@ -301,6 +303,7 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                 urls.append(f"https://{mundo}.guerrastribales.es/admintool/action_log.php?page={pagina}")
 
         print(color_texto(f"\n⏳ Iniciando descarga secuencial de {len(urls)} páginas (sin hilos)...", "amarillo"))
+        print(color_texto("💡 Presiona ENTER en cualquier momento para cancelar la descarga", "cian"))
 
         # Contador de progreso
         paginas_completadas = 0
@@ -314,10 +317,15 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
         # Procesamiento secuencial: sin hilos, una página a la vez
         for idx, url in enumerate(urls):
             # Verificar cancelación antes de cada página
-            if verificar_cancelacion_simple():
+            if verificar_cancelacion_simple() or cancelacion_solicitada:
                 print(color_texto("\n⚠️ Descarga cancelada por el usuario", "amarillo"))
                 break
             descargar_procesar_guardar(idx, url)
+            
+            # Verificar cancelación después de procesar cada página
+            if cancelacion_solicitada:
+                print(color_texto("\n⚠️ Descarga cancelada por el usuario", "amarillo"))
+                break
 
         # Mostrar progreso final
         if total_registros_nuevos > 0:
@@ -431,24 +439,27 @@ def descargar_registros_todos_los_mundos(mundos):
     cancelacion_solicitada = False
     
     def verificar_cancelacion_simple():
+        nonlocal cancelacion_solicitada
         try:
             import msvcrt
             if msvcrt.kbhit():
                 key = msvcrt.getch()
                 if key == b'\r':  # Enter
+                    cancelacion_solicitada = True
                     return True
         except ImportError:
             pass  # No disponible en sistemas no Windows
         return False
     
-    print(color_texto("💡 Procesamiento secuencial - sin hilos para evitar detección\n", "cian"))
+    print(color_texto("💡 Procesamiento secuencial - sin hilos para evitar detección", "cian"))
+    print(color_texto("💡 Presiona ENTER en cualquier momento para cancelar la descarga\n", "cian"))
     
     total_exitosos = 0
     total_registros = 0
     
     for i, mundo in enumerate(mundos, 1):
         # Verificar cancelación simple
-        if verificar_cancelacion_simple():
+        if verificar_cancelacion_simple() or cancelacion_solicitada:
             print(color_texto("\n⚠️ Cancelación solicitada por el usuario", "amarillo"))
             break
             
@@ -471,6 +482,11 @@ def descargar_registros_todos_los_mundos(mundos):
             print(color_texto(f"✅ {mundo} completado: {registros_nuevos:,} registros nuevos", "verde"))
         else:
             print(color_texto(f"❌ Falló la descarga para {mundo}", "rojo"))
+        
+        # Verificar cancelación después de cada mundo
+        if cancelacion_solicitada:
+            print(color_texto(f"\n⚠️ Cancelación detectada después de procesar {mundo}", "amarillo"))
+            break
     
     # Mostrar progreso final de mundos
     if total_exitosos > 0:
