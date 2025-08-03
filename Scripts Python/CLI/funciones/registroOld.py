@@ -3,51 +3,24 @@ from datetime import datetime, timedelta
 from utils.selenium import *
 from utils.config import HEADERS, EXPECTED_HEADERS
 from funciones.extra import *
-from utils.stealth import *
 import utils.config
 import os
 import time
-import random
 import sys
-# Removido threading y concurrent.futures para procesamiento 100% secuencial
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import queue
 
-# Variables globales para tracking de requests
-_request_count = 0
-_session_start_time = time.time()
+MAX_WORKERS = 3
+REQUEST_DELAY = 0.5
 
-def descargar_pagina_stealth(session, url, headers, es_post=False, post_data=None):
-    global _request_count
-    _request_count += 1
-    
-    # Usar headers dinámicos
-    dynamic_headers = get_random_headers()
-    
-    # Simular tiempo de lectura antes de hacer request
-    add_mouse_simulation()
-    
-    # Hacer la petición
-    if es_post and post_data:
-        resp = session.post(url, headers=dynamic_headers, data=post_data)
-    else:
-        resp = session.get(url, headers=dynamic_headers)
-    
-    # Delay humano impredecible
-    delay = human_delay(
-        base_min=STEALTH_CONFIG["min_delay"], 
-        base_max=STEALTH_CONFIG["max_delay"]
-    )
-    print(color_texto(f"⏳ Pausa humana: {delay:.1f}s (request #{_request_count})", "gris"))
-    time.sleep(delay)
-    
-    # Verificar si necesita descanso de sesión
-    session_break_check(_request_count, STEALTH_CONFIG["max_consecutive_requests"])
-    
-    return resp
-
-# Función legacy para compatibilidad
 def descargar_pagina(session, url, headers, es_post=False, post_data=None):
-    return descargar_pagina_stealth(session, url, headers, es_post, post_data)
+    if es_post and post_data:
+        resp = session.post(url, headers=headers, data=post_data)
+    else:
+        resp = session.get(url, headers=headers)
+    time.sleep(REQUEST_DELAY)
+    return resp
 
 def obtener_detalles_tabla(html_content):
     try:
@@ -98,8 +71,9 @@ def obtener_detalles_tabla(html_content):
 
 def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=None):
     try:
-        # Variables simples para control de cancelación
-        cancelacion_solicitada = False
+        # Crear un stop_event local si no se proporciona
+        if stop_event is None:
+            stop_event = threading.Event()
         
         # Configurar el mundo actual en config
         utils.config.WORLD = mundo
@@ -124,7 +98,7 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
             
         os.makedirs(os.path.dirname(archivo_registro), exist_ok=True)
 
-        if cancelacion_solicitada:
+        if stop_event.is_set():
             print(color_texto("⚠️ Descarga cancelada por el usuario", "amarillo"))
             return False, 0
 
@@ -181,8 +155,10 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
         else:
             print(color_texto(f"🔍 Se detectaron {total_paginas} páginas disponibles", "verde"))
             print(color_texto(f"📄 Se descargarán TODAS las páginas del registro (1 a {total_paginas}).", "amarillo"))
-        print(color_texto(f"🚀 Procesamiento secuencial: 1 descarga a la vez, delay humano variable entre {STEALTH_CONFIG['min_delay']}s y {STEALTH_CONFIG['max_delay']}s", "cian"))
-        print(color_texto("💡 El programa es ahora 100% secuencial (sin hilos) para máxima seguridad", "azul"))
+        print(color_texto(f"🚀 Procesamiento en paralelo: {MAX_WORKERS} hilos con {REQUEST_DELAY}s de delay", "cian"))
+        print(color_texto("💡 Presiona ENTER para cancelar la descarga en cualquier momento", "azul"))
+
+        lock = threading.Lock()
 
         # Leer todas las líneas actuales del archivo (si existe) - solo para registros globales
         lineas_existentes = set()
@@ -192,37 +168,57 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
         elif player_id:
             print(color_texto("🆕 Descarga limpia: se guardarán todos los registros del jugador", "cian"))
 
-        # Función simplificada para verificar cancelación (sin hilos)
-        def verificar_cancelacion_simple():
-            try:
-                import msvcrt
-                if msvcrt.kbhit():
-                    key = msvcrt.getch()
-                    if key == b'\r':  # Enter
-                        return True
-            except ImportError:
-                pass  # No disponible en sistemas no Windows
-            return False
+        # Configurar cancelación con hilo separado
+        def verificar_cancelacion_individual():
+            while not stop_event.is_set():
+                try:
+                    # Usar msvcrt para Windows ya que select no funciona con stdin en Windows
+                    import msvcrt
+                    if msvcrt.kbhit():
+                        key = msvcrt.getch()
+                        if key == b'\r':  # Enter en Windows
+                            print(color_texto("\n⚠️ Cancelación solicitada. Guardando registros descargados...", "amarillo"))
+                            stop_event.set()
+                            break
+                    time.sleep(0.1)
+                except ImportError:
+                    # Fallback para sistemas no Windows
+                    try:
+                        import select
+                        import sys
+                        if sys.stdin in select.select([sys.stdin], [], [], 0)[0]:
+                            entrada = input()
+                            if entrada.strip() == "":
+                                print(color_texto("\n⚠️ Cancelación solicitada. Guardando registros descargados...", "amarillo"))
+                                stop_event.set()
+                                break
+                    except:
+                        time.sleep(0.1)
+                except:
+                    time.sleep(0.1)
+        
+        # Solo iniciar hilo de cancelación si no existe ya uno global
+        if not hasattr(stop_event, '_cancelacion_activa'):
+            hilo_cancelacion = threading.Thread(target=verificar_cancelacion_individual, daemon=True)
+            hilo_cancelacion.start()
+            stop_event._cancelacion_activa = True
 
         def descargar_procesar_guardar(idx, url):
             nonlocal paginas_completadas, total_registros_nuevos
             
-            # Verificar cancelación simple
-            if verificar_cancelacion_simple():
-                print(color_texto("\n⚠️ Cancelación solicitada por el usuario", "amarillo"))
+            if stop_event.is_set():
                 return 0
-                
+            
             try:
                 if idx == 0:
                     html = response.text  # Usar la respuesta del POST inicial
                 else:
-                    resp = descargar_pagina_stealth(session, url, HEADERS)
+                    resp = descargar_pagina(session, url, HEADERS)
                     html = resp.text
-                    
-                # Verificar cancelación después de descarga
-                if verificar_cancelacion_simple():
+                
+                if stop_event.is_set():
                     return 0
-                    
+
                 soup_actual = BeautifulSoup(html, "html.parser")
                 tables = soup_actual.find_all("table", class_="vis")
                 if len(tables) < 2:
@@ -232,9 +228,10 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                 if result_table is None:
                     print(color_texto(f"❌ No se encontró la tabla con encabezados esperados en página {idx+1}", "rojo"))
                     return 0
+                
                 lineas = []
                 for tr in result_table.find_all("tr")[1:]:
-                    if verificar_cancelacion_simple():
+                    if stop_event.is_set():
                         return 0
                     tds = tr.find_all("td")
                     if not tds:
@@ -245,49 +242,75 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                         fila.append(a.get_text(strip=True) if a else td.get_text(strip=True))
                     registro_linea = '\t'.join(fila)
                     lineas.append(registro_linea.strip())
+                
+                # Verifica si TODOS los registros de la página ya están en el archivo (solo para registros globales)
                 if not player_id and lineas and all(linea in lineas_existentes for linea in lineas):
-                    paginas_completadas += 1
-                    if paginas_completadas % (mostrar_cada_n_paginas * 3) == 0:
-                        porcentaje = (paginas_completadas / len(urls)) * 100
-                        barra_longitud = 30
-                        progreso_barra = int((paginas_completadas / len(urls)) * barra_longitud)
-                        barra = "█" * progreso_barra + "░" * (barra_longitud - progreso_barra)
-                        print(color_texto(f"⏭️  [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ Omitiendo duplicados...", "cian"))
+                    with lock:
+                        paginas_completadas += 1
+                        # Solo mostrar mensaje de omisión ocasionalmente para evitar spam
+                        if paginas_completadas % (mostrar_cada_n_paginas * 3) == 0:
+                            porcentaje = (paginas_completadas / len(urls)) * 100
+                            barra_longitud = 30
+                            progreso_barra = int((paginas_completadas / len(urls)) * barra_longitud)
+                            barra = "█" * progreso_barra + "░" * (barra_longitud - progreso_barra)
+                            print(color_texto(f"⏭️  [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ Omitiendo duplicados...", "cian"))
                     return 0
+                
+                # Guarda los registros (todos si es jugador específico, solo nuevos si es global)
                 if player_id:
+                    # Para jugadores específicos, guardar todos los registros
                     registros_a_guardar = [linea + "\n" for linea in lineas]
                 else:
+                    # Para registros globales, guardar solo los que no estén
                     registros_a_guardar = [linea + "\n" for linea in lineas if linea not in lineas_existentes]
+                
                 if registros_a_guardar:
+                    # --- CREA EL DIRECTORIO SI NO EXISTE ---
                     os.makedirs(os.path.dirname(archivo_registro), exist_ok=True)
-                    with open(archivo_registro, "a", encoding="utf-8") as f:
-                        f.writelines(registros_a_guardar)
-                    total_registros_nuevos += len(registros_a_guardar)
-                    paginas_completadas += 1
-                    porcentaje = (paginas_completadas / len(urls)) * 100
-                    barra_longitud = 30
-                    progreso_barra = int((paginas_completadas / len(urls)) * barra_longitud)
-                    barra = "█" * progreso_barra + "░" * (barra_longitud - progreso_barra)
-                    if (paginas_completadas % mostrar_cada_n_paginas == 0 or 
-                        paginas_completadas == len(urls) or 
-                        paginas_completadas <= 3):
-                        if player_id:
-                            print(color_texto(f"� [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros del jugador", "verde"))
-                        else:
-                            print(color_texto(f"� [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros nuevos", "verde"))
-                    return len(registros_a_guardar)
-                else:
-                    paginas_completadas += 1
-                    if paginas_completadas % (mostrar_cada_n_paginas * 2) == 0:
+                    with lock:
+                        with open(archivo_registro, "a", encoding="utf-8") as f:
+                            f.writelines(registros_a_guardar)
+                        total_registros_nuevos += len(registros_a_guardar)
+                        paginas_completadas += 1
+                        
+                        # Mostrar progreso de forma más limpia y profesional
                         porcentaje = (paginas_completadas / len(urls)) * 100
+                        
+                        # Crear barra de progreso visual
                         barra_longitud = 30
                         progreso_barra = int((paginas_completadas / len(urls)) * barra_longitud)
                         barra = "█" * progreso_barra + "░" * (barra_longitud - progreso_barra)
-                        if player_id:
-                            print(color_texto(f"📊 [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros del jugador", "azul"))
+                        
+                        # Mostrar mensaje detallado solo cada N páginas o en páginas importantes
+                        if (paginas_completadas % mostrar_cada_n_paginas == 0 or 
+                            paginas_completadas == len(urls) or 
+                            paginas_completadas <= 3):
+                            
+                            if player_id:
+                                print(color_texto(f"� [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros del jugador", "verde"))
+                            else:
+                                print(color_texto(f"� [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros nuevos", "verde"))
                         else:
-                            print(color_texto(f"📊 [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros nuevos", "azul"))
+                            # Para el resto, solo actualizar una línea (sin print múltiples)
+                            pass
+                            
+                    return len(registros_a_guardar)
+                else:
+                    with lock:
+                        paginas_completadas += 1
+                        # Solo mostrar mensaje de páginas vacías si es significativo
+                        if paginas_completadas % (mostrar_cada_n_paginas * 2) == 0:
+                            porcentaje = (paginas_completadas / len(urls)) * 100
+                            barra_longitud = 30
+                            progreso_barra = int((paginas_completadas / len(urls)) * barra_longitud)
+                            barra = "█" * progreso_barra + "░" * (barra_longitud - progreso_barra)
+                            
+                            if player_id:
+                                print(color_texto(f"📊 [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros del jugador", "azul"))
+                            else:
+                                print(color_texto(f"📊 [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros nuevos", "azul"))
                     return 0
+                    
             except Exception as e:
                 print(color_texto(f"❌ Error procesando página {idx+1}: {e}", "rojo"))
                 return 0
@@ -300,7 +323,7 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
             else:
                 urls.append(f"https://{mundo}.guerrastribales.es/admintool/action_log.php?page={pagina}")
 
-        print(color_texto(f"\n⏳ Iniciando descarga secuencial de {len(urls)} páginas (sin hilos)...", "amarillo"))
+        print(color_texto(f"\n⏳ Iniciando descarga en paralelo de {len(urls)} páginas...", "amarillo"))
 
         # Contador de progreso
         paginas_completadas = 0
@@ -311,21 +334,23 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
         if len(urls) > 50:
             mostrar_cada_n_paginas = max(5, len(urls) // 10)  # Para muchas páginas, mostrar cada 10%
 
-        # Procesamiento secuencial: sin hilos, una página a la vez
-        for idx, url in enumerate(urls):
-            # Verificar cancelación antes de cada página
-            if verificar_cancelacion_simple():
-                print(color_texto("\n⚠️ Descarga cancelada por el usuario", "amarillo"))
-                break
-            descargar_procesar_guardar(idx, url)
+        # Usar ThreadPoolExecutor para paralelismo controlado
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            # Enviar las tareas al pool de hilos
+            future_to_idx = {executor.submit(descargar_procesar_guardar, idx, url): idx for idx, url in enumerate(urls)}
+            
+            # Procesar los resultados conforme van completándose
+            for future in as_completed(future_to_idx):
+                if stop_event.is_set():
+                    print(color_texto("⚠️ Descarga cancelada por el usuario", "amarillo"))
+                    break
 
         # Mostrar progreso final
         if total_registros_nuevos > 0:
             barra_final = "█" * 30
             print(color_texto(f"\n🎯 [{barra_final}] 100.0% │ {paginas_completadas}/{len(urls)} páginas │ ¡Descarga completada!", "verde"))
 
-        # Verificación simple de cancelación
-        if cancelacion_solicitada:
+        if stop_event.is_set():
             if player_id:
                 print(color_texto(f"⚠️ Descarga de registros del jugador {player_id} interrumpida. Se guardaron {total_registros_nuevos:,} registros antes de la cancelación.", "amarillo"))
             else:
@@ -425,31 +450,36 @@ def descargar_registros_todos_los_mundos(mundos):
         return
 
     print(color_texto(f"\n🌍 Iniciando descarga de registros para {len(mundos)} mundo(s)", "amarillo"))
-    print(color_texto(f"🚀 Procesamiento 100% secuencial (sin hilos) para máxima seguridad", "cian"))
+    print(color_texto(f"🚀 Procesamiento mejorado con formato profesional", "cian"))
     
-    # Variable simple para cancelación
-    cancelacion_solicitada = False
+    # Evento para cancelación global
+    stop_event = threading.Event()
     
-    def verificar_cancelacion_simple():
-        try:
-            import msvcrt
-            if msvcrt.kbhit():
-                key = msvcrt.getch()
-                if key == b'\r':  # Enter
-                    return True
-        except ImportError:
-            pass  # No disponible en sistemas no Windows
-        return False
+    def verificar_cancelacion():
+        while not stop_event.is_set():
+            try:
+                entrada = input()
+                if entrada.strip() == "":
+                    print(color_texto("\n⚠️ Cancelación solicitada. Deteniendo descarga...", "amarillo"))
+                    stop_event.set()
+                    break
+            except (EOFError, KeyboardInterrupt):
+                print(color_texto("\n⚠️ Cancelación solicitada. Deteniendo descarga...", "amarillo"))
+                stop_event.set()
+                break
     
-    print(color_texto("💡 Procesamiento secuencial - sin hilos para evitar detección\n", "cian"))
+    # Iniciar hilo de verificación de cancelación
+    hilo_cancelacion = threading.Thread(target=verificar_cancelacion, daemon=True)
+    hilo_cancelacion.start()
+    
+    print(color_texto("💡 Presiona ENTER para cancelar la descarga en cualquier momento\n", "cian"))
     
     total_exitosos = 0
     total_registros = 0
     
     for i, mundo in enumerate(mundos, 1):
-        # Verificar cancelación simple
-        if verificar_cancelacion_simple():
-            print(color_texto("\n⚠️ Cancelación solicitada por el usuario", "amarillo"))
+        if stop_event.is_set():
+            print(color_texto("⚠️ Descarga cancelada antes de procesar todos los mundos", "amarillo"))
             break
             
         # Mostrar progreso entre mundos con formato mejorado
@@ -462,8 +492,7 @@ def descargar_registros_todos_los_mundos(mundos):
         print(color_texto(f"🌍 [{barra_mundos}] {porcentaje_mundos:5.1f}% │ Procesando mundo {i}/{len(mundos)}: {mundo}", "amarillo"))
         print(color_texto(f"{'═'*70}", "blanco"))
         
-        # Llamada simplificada sin stop_event
-        exito, registros_nuevos = guardar_registros_archivo(mundo)
+        exito, registros_nuevos = guardar_registros_archivo(mundo, stop_event=stop_event)
         
         if exito:
             total_exitosos += 1

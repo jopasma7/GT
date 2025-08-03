@@ -106,9 +106,32 @@ def main():
     print(color_texto("👋 ¡Bienvenido, Alejandro! 😊", "verde"))
     print("Este script te ayudará a analizar los registros de Guerras Tribales.")
     print("="*60)
+    
+    # Mostrar advertencia de modo seguro
+    from utils.safe_mode import print_safe_mode_warning
+    from utils.stealth import show_session_info
+    print_safe_mode_warning()
+    
+    print(color_texto("\n⚠️  IMPORTANTE: Para evitar problemas con la administración del juego,", "amarillo"))
+    print(color_texto("este programa ahora opera con límites conservadores y comportamiento humano.", "amarillo"))
+    print(color_texto("Mantiene headers consistentes (mismo navegador) durante toda la sesión.", "blanco"))
+    input(color_texto("\nPresiona Enter para continuar y aceptar estas condiciones...", "verde"))
+    
+    # Mostrar información de la sesión
+    show_session_info()
 
-    print(color_texto("🔄 Actualizando usuarios baneados en segundo plano...", "amarillo"))
-    fetch_and_save_bans_background()
+    # Preguntar si quiere analizar baneos
+    print(color_texto("\n� Análisis de usuarios baneados", "azul"))
+    print("¿Deseas actualizar la base de datos de usuarios baneados?")
+    print("(Esto puede tomar varios minutos y consume requests)")
+    actualizar_bans = input(color_texto("¿Actualizar baneos? (s/N): ", "amarillo")).strip().lower()
+    
+    if actualizar_bans in ['s', 'si', 'sí', 'y', 'yes']:
+        print(color_texto("🔄 Actualizando usuarios baneados...", "amarillo"))
+        fetch_and_save_bans_background()
+        print(color_texto("✅ Actualización de baneos completada", "verde"))
+    else:
+        print(color_texto("⏭️  Omitiendo actualización de baneos", "blanco"))
 
     # Obtiene mundos disponibles dinámicamente
     mundos_disponibles = obtener_mundos_disponibles()

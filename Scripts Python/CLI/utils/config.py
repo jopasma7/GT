@@ -8,8 +8,17 @@ HEADERS = {"User-Agent": "Mozilla/5.0"}
 WORLD = "es94"
 
 # ========== CONFIGURACIÓN DE ACCESO ==========
-USERNAME = "kurome"
-PASSWORD = "tiJFok85Bd5iBpnS9XNIti"
+# IMPORTANTE: Las credenciales se cargan desde variables de entorno por seguridad
+import os
+
+USERNAME = os.getenv("GT_USERNAME", "")  # Establecer con: set GT_USERNAME=tu_usuario
+PASSWORD = os.getenv("GT_PASSWORD", "")  # Establecer con: set GT_PASSWORD=tu_contraseña
+
+# Verificar que las credenciales estén configuradas
+if not USERNAME or not PASSWORD:
+    print("⚠️ ATENCIÓN: Configura las variables de entorno GT_USERNAME y GT_PASSWORD")
+    print("Windows: set GT_USERNAME=tu_usuario && set GT_PASSWORD=tu_contraseña")
+    print("Linux/Mac: export GT_USERNAME=tu_usuario && export GT_PASSWORD=tu_contraseña")
 
 # ========== RUTAS Y URLS ==========
 EXPECTED_HEADERS = ["Date", "Player", "Village", "Screen", "Action", "Session type", "CID"]

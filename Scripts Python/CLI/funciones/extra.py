@@ -60,13 +60,24 @@ def color_texto(texto, color):
 def obtener_mundos_disponibles():
     """
     Devuelve una lista de mundos realmente accesibles para el usuario desde la página INDEX_URL.
+    Ahora con comportamiento más humano.
     """
     from utils.selenium import verificar_cookie_y_sesion
     import utils.config
     from bs4 import BeautifulSoup
+    
+    # Importar stealth si está disponible
+    try:
+        from utils.stealth import get_random_headers, add_mouse_simulation
+        headers = get_random_headers()
+        print("🕵️ Usando headers dinámicos para obtener mundos...")
+        add_mouse_simulation()  # Simular tiempo de carga
+    except ImportError:
+        headers = utils.config.HEADERS
+        print("⚠️ Usando headers estáticos (modo básico)")
 
     session = verificar_cookie_y_sesion()
-    resp = session.get(utils.config.INDEX_URL, headers=utils.config.HEADERS)
+    resp = session.get(utils.config.INDEX_URL, headers=headers)
     soup = BeautifulSoup(resp.text, "html.parser")
 
     mundos = []

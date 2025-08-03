@@ -5,13 +5,16 @@ from funciones.coincidencias import analizar_coincidencias_simple
 from funciones.registro import *
 from funciones.resumen import *
 from funciones.recursos import *
+from utils.stealth import get_random_headers, human_delay, add_mouse_simulation
 import requests
 import os
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+import time
 
-# Parámetros de búsqueda
-headers = {"User-Agent": "Mozilla/5.0"}
+# Parámetros de búsqueda mejorados
+def get_session_headers():
+    return get_random_headers()
 
 def iniciar_sesion():
     """
@@ -68,12 +71,23 @@ def buscar_jugador_por_nombre(player_name=None, preguntar_si_vacio=True):
         if not player_name:
             print(color_texto("No se introdujo ningún nombre.", "rojo"))
             return
-    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # Simular comportamiento humano antes de buscar
+    print(color_texto(f"🔍 Preparando búsqueda del jugador '{player_name}'...", "azul"))
+    add_mouse_simulation()  # Simula tiempo de preparación
+    
+    headers = get_session_headers()  # Headers dinámicos
     
     payload = {
         "multi_name": player_name,
         "action": "search_user_by_name"
     }
+    
+    # Pausa antes de hacer la petición
+    delay = human_delay(base_min=3, base_max=8)
+    print(color_texto(f"⏳ Iniciando búsqueda en {delay:.1f}s...", "gris"))
+    time.sleep(delay)
+    
     response = iniciar_sesion().get(utils.config.get_top_1000_url(), params=payload, headers=headers)
     if response.status_code == 200:
         print(f"\n🔍 Búsqueda realizada para el jugador '{player_name}'.")

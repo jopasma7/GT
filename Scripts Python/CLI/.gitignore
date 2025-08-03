@@ -1,0 +1,39 @@
+# Archivos de credenciales - NUNCA subir al repositorio
+.env
+utils/cookies_gt.json
+*.json
+
+# Logs y datos descargados
+logs/
+*.log
+*.txt
+
+# Cache de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Archivos temporales
+*.tmp
+*.temp
+.tmp/
+
+# Archivos de configuración personal
+config.local.py
+settings.local.py
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos de ChromeDriver
+chromedriver.exe
+chromedriver
+
+# Backups
+*.bak
+*.backup

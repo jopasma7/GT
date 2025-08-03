@@ -1,17 +1,19 @@
-import threading
 import requests
 import utils.config
-from funciones.extra import obtener_mundos_disponibles
+from funciones.extra import obtener_mundos_disponibles, color_texto
+from utils.stealth import get_random_headers, human_delay, session_break_check, should_skip_mundo
 from bs4 import BeautifulSoup
 from utils.selenium import verificar_cookie_y_sesion
 import yaml
 import os
 from datetime import datetime
+import time
 
 # Cache global para mundos disponibles
 _mundos_cache = None
 _mundos_cache_timestamp = None
 _CACHE_DURATION = 300  # 5 minutos en segundos
+_ban_request_count = 0
 
 def obtener_mundos_cached():
     """
@@ -64,10 +66,47 @@ def fetch_and_save_bans_background():
     mundos_errores = []
     estados_actualizados = {}  # Para trackear cambios de estado
 
-    for mundo in obtener_mundos_disponibles():
+    mundos_disponibles = obtener_mundos_disponibles()
+    
+    # APLICAR LÍMITES DE SEGURIDAD
+    from utils.safe_mode import SAFE_MODE_CONFIG, check_session_limits
+    import time
+    
+    max_mundos = SAFE_MODE_CONFIG["max_worlds_per_session"]
+    if len(mundos_disponibles) > max_mundos:
+        print(f"⚠️ Limitando a {max_mundos} mundos por seguridad (de {len(mundos_disponibles)} disponibles)")
+        mundos_disponibles = mundos_disponibles[:max_mundos]
+    
+    print(f"🌍 Procesando {len(mundos_disponibles)} mundos con comportamiento humano...")
+    session_start = time.time()
+
+    for i, mundo in enumerate(mundos_disponibles):
+        global _ban_request_count
+        _ban_request_count += 1
+        
+        # Verificar límites de sesión
+        if check_session_limits(_ban_request_count, session_start, i):
+            print(color_texto("🛑 Límites de seguridad alcanzados. Deteniendo actualización de baneos.", "amarillo"))
+            break
+        
+        # Ocasionalmente saltar mundos (comportamiento humano)
+        if should_skip_mundo(mundo, skip_probability=0.05):  # 5% chance
+            continue
+            
+        # Pausa humana entre mundos
+        if i > 0:  # No delay en el primer mundo
+            delay = human_delay(base_min=8, base_max=25)
+            print(color_texto(f"⏳ Pausa entre mundos: {delay:.1f}s", "gris"))
+            time.sleep(delay)
+        
+        # Descanso de sesión cada ciertos requests
+        session_break_check(_ban_request_count, max_requests=15)
+        
         url = f"https://{mundo}.guerrastribales.es/admintool/multi.php?mode=list_banned"
         try:
-            response = session.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            # Headers dinámicos y humanos
+            headers = get_random_headers()
+            response = session.get(url, headers=headers)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
 
