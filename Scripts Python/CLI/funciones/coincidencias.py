@@ -46,6 +46,12 @@ def analizar_coincidencias_simple(archivo_registro):
         return
 
     jugadores = sorted(coincidencias_por_jugador.keys())
+    
+    # 🚀 OPTIMIZACIÓN: Cargar baneos y verificar estados de forma masiva
+    global_bans = cargar_bans_global()
+    from funciones.bans import obtener_estados_ban_masivo
+    estado_ban_jugadores = obtener_estados_ban_masivo(jugadores, global_bans)
+    
     while True:
         os.system("cls" if os.name == "nt" else "clear")
         print(color_texto("═" * 60, "azul"))
@@ -53,7 +59,45 @@ def analizar_coincidencias_simple(archivo_registro):
         print(color_texto("═" * 60, "azul"))
         for idx, jugador in enumerate(jugadores, 1):
             n = len(coincidencias_por_jugador[jugador])
-            print(f"{color_texto(str(idx), 'verde')}. 👤 {color_texto(jugador, 'blanco')} tiene {color_texto(str(n), 'amarillo')} coincidencia{'s' if n != 1 else ''}")
+            ban_status, fecha_exp, mundo_ban, tiene_historial = estado_ban_jugadores.get(jugador, (None, None, None, False))
+            
+            # Estados de ban activos (PELIGRO)
+            if ban_status == "permanente":
+                idx_str = color_texto(str(idx), "rojo")
+                jugador_str = color_texto(f"👤 {jugador}", "blanco")
+                coincidencias_str = color_texto(str(n), 'amarillo')
+                ban_str = color_texto(" 🚨 BAN PERMANENTE ACTIVO", "rojo")
+                print(f"{idx_str}. {jugador_str} tiene {coincidencias_str} coincidencia{'s' if n != 1 else ''}{ban_str}")
+            elif ban_status == "temporal":
+                idx_str = color_texto(str(idx), "amarillo")
+                jugador_str = color_texto(f"👤 {jugador}", "blanco")
+                coincidencias_str = color_texto(str(n), 'amarillo')
+                ban_str = color_texto(f" ⚠️ BAN TEMPORAL ACTIVO → {fecha_exp}", "amarillo")
+                print(f"{idx_str}. {jugador_str} tiene {coincidencias_str} coincidencia{'s' if n != 1 else ''}{ban_str}")
+            elif ban_status == "otro_mundo":
+                idx_str = color_texto(str(idx), "magenta")
+                jugador_str = color_texto(f"👤 {jugador}", "blanco")
+                coincidencias_str = color_texto(str(n), 'amarillo')
+                ban_str = color_texto(f" 🌍 BAN ACTIVO EN {mundo_ban}", "magenta")
+                print(f"{idx_str}. {jugador_str} tiene {coincidencias_str} coincidencia{'s' if n != 1 else ''}{ban_str}")
+            # Solo historial previo (ALERTA) - PERO puede incluir baneos activos
+            elif tiene_historial:
+                from funciones.bans import generar_mensaje_historial_baneos, obtener_color_mensaje_ban, obtener_color_indice_ban
+                mensaje_historial = generar_mensaje_historial_baneos(jugador, global_bans, utils.config.WORLD)
+                color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
+                color_indice = obtener_color_indice_ban(mensaje_historial)
+                
+                idx_str = color_texto(str(idx), color_indice)
+                jugador_str = color_texto(f"👤 {jugador}", "blanco")
+                coincidencias_str = color_texto(str(n), 'amarillo')
+                ban_str = color_texto(f" {mensaje_historial}", color_mensaje)
+                print(f"{idx_str}. {jugador_str} tiene {coincidencias_str} coincidencia{'s' if n != 1 else ''}{ban_str}")
+            # Sin baneos
+            else:
+                idx_str = color_texto(str(idx), "verde")
+                jugador_str = color_texto(f"👤 {jugador}", "blanco")
+                coincidencias_str = color_texto(str(n), 'amarillo')
+                print(f"{idx_str}. {jugador_str} tiene {coincidencias_str} coincidencia{'s' if n != 1 else ''}")
         print(color_texto("0. Salir", "rojo"))
         print(color_texto("═" * 60, "azul"))
         try:
@@ -126,10 +170,9 @@ def analizar_coincidencias_global(archivo_registro=None):
     global_bans = cargar_bans_global()
     jugadores = sorted(coincidencias_por_jugador.keys())
 
-    estado_ban_jugadores = {}
-    for jugador in jugadores:
-        ban_status, fecha_exp, mundo_ban, tiene_historial = check_ban_jugador_completo(jugador, global_bans, utils.config.WORLD)
-        estado_ban_jugadores[jugador] = (ban_status, fecha_exp, mundo_ban, tiene_historial)
+    # 🚀 OPTIMIZACIÓN: Verificar estados de ban de forma masiva
+    from funciones.bans import obtener_estados_ban_masivo
+    estado_ban_jugadores = obtener_estados_ban_masivo(jugadores, global_bans)
 
     while True:
         os.system("cls" if os.name == "nt" else "clear")
