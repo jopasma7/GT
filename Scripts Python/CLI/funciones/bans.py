@@ -9,31 +9,15 @@ import os
 from datetime import datetime
 import time
 
-# Cache global para mundos disponibles
-_mundos_cache = None
-_mundos_cache_timestamp = None
-_CACHE_DURATION = 300  # 5 minutos en segundos
+# Contador para requests de baneos
 _ban_request_count = 0
 
 def obtener_mundos_cached():
     """
-    Versión optimizada que cachea los mundos disponibles por 5 minutos.
-    Evita hacer peticiones HTTP repetidas innecesariamente.
+    Devuelve los mundos disponibles.
+    Como ahora la función es estática, no necesita cache.
     """
-    global _mundos_cache, _mundos_cache_timestamp
-    import time
-    
-    current_time = time.time()
-    
-    # Si no hay cache o ha expirado, actualizar
-    if (_mundos_cache is None or 
-        _mundos_cache_timestamp is None or 
-        current_time - _mundos_cache_timestamp > _CACHE_DURATION):
-        
-        _mundos_cache = obtener_mundos_disponibles()
-        _mundos_cache_timestamp = current_time
-    
-    return _mundos_cache
+    return obtener_mundos_disponibles()
 
 # Al principio del menú, carga el archivo UNA VEZ:
 def cargar_bans_global():

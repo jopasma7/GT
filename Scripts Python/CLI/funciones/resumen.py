@@ -349,15 +349,24 @@ def analisis_completo(archivo_registro):
     # Elimina duplicados y líneas vacías
     resumen_final = "\n".join([l for i, l in enumerate(resumen_partes) if l and l not in resumen_partes[:i]])
 
+    # Contar baneos para el resumen
+    total_baneos = len(historial_bans) if historial_bans else 0
+    resumen_baneos = f"🔸 Baneos Previos:   {total_baneos} baneos." if total_baneos > 0 else "🔸 Baneos Previos:   Sin historial de baneos."
+
+    # Mostrar aviso de baneos primero (solo visual)
+    if aviso_bans:
+        print(aviso_bans)
+
     reporte_final = f"""
 📊 Reporte de Actividad del Jugador
 
-{aviso_bans}🔹 Nombre:          {nombre_jugador}
+🔹 Nombre:          {nombre_jugador}
 🔹 Mundo:           {utils.config.WORLD}
 🔹 Motivo:          Automatismos.
 🔹 Tiempo Revisión: {tiempo_revision}
 🔹 Prioridad:       Alta
 🔹 Fecha Revisión:  {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}
+{resumen_baneos}
 
 🔸 Análisis Global:
 {resumen_final}

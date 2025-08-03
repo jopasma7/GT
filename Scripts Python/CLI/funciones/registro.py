@@ -207,7 +207,7 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
             return False
 
         def descargar_procesar_guardar(idx, url):
-            nonlocal paginas_completadas, total_registros_nuevos
+            nonlocal paginas_completadas, total_registros_nuevos, paginas_sin_registros_consecutivas
             
             # Verificar cancelación simple
             if verificar_cancelacion_simple():
@@ -261,6 +261,9 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                 else:
                     registros_a_guardar = [linea + "\n" for linea in lineas if linea not in lineas_existentes]
                 if registros_a_guardar:
+                    # Se guardaron registros - resetear contador de páginas sin registros
+                    paginas_sin_registros_consecutivas = 0
+                    
                     os.makedirs(os.path.dirname(archivo_registro), exist_ok=True)
                     with open(archivo_registro, "a", encoding="utf-8") as f:
                         f.writelines(registros_a_guardar)
@@ -279,6 +282,18 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
                             print(color_texto(f"� [{barra}] {porcentaje:5.1f}% │ {paginas_completadas:3d}/{len(urls)} páginas │ {total_registros_nuevos:,} registros nuevos", "verde"))
                     return len(registros_a_guardar)
                 else:
+                    # No se guardaron registros - incrementar contador
+                    paginas_sin_registros_consecutivas += 1
+                    
+                    # Mostrar aviso de que no se guardaron registros
+                    print(color_texto(f"ℹ️  Página {idx+1}: Sin registros nuevos (0 guardados) - Consecutivas sin registros: {paginas_sin_registros_consecutivas}/{max_paginas_sin_registros}", "naranja"))
+                    
+                    # Verificar si se debe cancelar por demasiadas páginas sin registros
+                    if paginas_sin_registros_consecutivas >= max_paginas_sin_registros:
+                        print(color_texto(f"\n🔄 Auto-cancelación: {max_paginas_sin_registros} páginas consecutivas sin registros nuevos", "amarillo"))
+                        print(color_texto("💡 Los siguientes registros ya están guardados", "cian"))
+                        return -1  # Señal especial para cancelar
+                    
                     paginas_completadas += 1
                     if paginas_completadas % (mostrar_cada_n_paginas * 2) == 0:
                         porcentaje = (paginas_completadas / len(urls)) * 100
@@ -309,6 +324,10 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
         paginas_completadas = 0
         total_registros_nuevos = 0
         
+        # Contador para páginas sin registros nuevos (para auto-cancelación)
+        paginas_sin_registros_consecutivas = 0
+        max_paginas_sin_registros = 5
+        
         # Configuración para mostrar progreso más limpio
         mostrar_cada_n_paginas = max(1, len(urls) // 20)  # Mostrar cada 5% del progreso
         if len(urls) > 50:
@@ -320,7 +339,13 @@ def guardar_registros_archivo(mundo, detalles="", stop_event=None, player_id=Non
             if verificar_cancelacion_simple() or cancelacion_solicitada:
                 print(color_texto("\n⚠️ Descarga cancelada por el usuario", "amarillo"))
                 break
-            descargar_procesar_guardar(idx, url)
+            
+            resultado = descargar_procesar_guardar(idx, url)
+            
+            # Verificar auto-cancelación por demasiadas páginas sin registros
+            if resultado == -1:
+                print(color_texto("\n🔄 Descarga auto-cancelada: Los siguientes registros ya están guardados", "amarillo"))
+                break
             
             # Verificar cancelación después de procesar cada página
             if cancelacion_solicitada:

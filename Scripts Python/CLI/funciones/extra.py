@@ -59,40 +59,22 @@ def color_texto(texto, color):
 
 def obtener_mundos_disponibles():
     """
-    Devuelve una lista de mundos realmente accesibles para el usuario desde la página INDEX_URL.
-    Ahora con comportamiento más humano.
+    Devuelve una lista de mundos disponibles de forma estática.
+    Evita peticiones HTTP innecesarias.
     """
-    from utils.selenium import verificar_cookie_y_sesion
-    import utils.config
-    from bs4 import BeautifulSoup
+    # Lista estática de mundos disponibles (actualizada: Agosto 2025)
+    mundos_estaticos = [
+        "es94",
+        "es93", 
+        "es92",
+        "es91",
+        "esc4",
+        "esp16",
+        "esp15",
+        "esc3",
+        "esp14",
+        "ess1"
+    ]
     
-    # Importar stealth si está disponible
-    try:
-        from utils.stealth import get_random_headers, add_mouse_simulation
-        headers = get_random_headers()
-        print("🕵️ Usando headers dinámicos para obtener mundos...")
-        add_mouse_simulation()  # Simular tiempo de carga
-    except ImportError:
-        headers = utils.config.HEADERS
-        print("⚠️ Usando headers estáticos (modo básico)")
-
-    session = verificar_cookie_y_sesion()
-    resp = session.get(utils.config.INDEX_URL, headers=headers)
-    soup = BeautifulSoup(resp.text, "html.parser")
-
-    mundos = []
-    # Busca todos los enlaces a multi.php (solo accesibles)
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if href.endswith("/multi.php"):
-            # Extrae el subdominio como nombre de mundo
-            url = href
-            if url.startswith("http"):
-                mundo = url.split("//")[1].split(".")[0]
-            else:
-                # Si es relativo, ignóralo
-                continue
-            if mundo not in mundos:
-                mundos.append(mundo)
-    return sorted(mundos)
+    return mundos_estaticos
 
