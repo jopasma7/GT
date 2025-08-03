@@ -165,7 +165,7 @@ def fetch_and_save_bans_background():
                         # REACTIVACIÓN: El mismo ban exacto vuelve a aparecer en la web
                         ban_existente["estado"] = "activo"
                         nuevos += 1
-                        nuevos_nombres.append(f"{nombre} (reactivado: {date} → {unban_date})")
+                        nuevos_nombres.append(f"{nombre} (reactivado: {date} → {unban_date}) por {admin}")
                     elif estado_anterior == "activo":
                         # Ya estaba activo, no hacer nada (evitar spam en reportes)
                         pass
@@ -174,7 +174,7 @@ def fetch_and_save_bans_background():
                     numero_ban = len(global_bans[mundo][nombre]) + 1
                     global_bans[mundo][nombre].append({numero_ban: nuevo_ban})
                     nuevos += 1
-                    nuevos_nombres.append(f"{nombre} (nuevo: {date} → {unban_date})")
+                    nuevos_nombres.append(f"{nombre} (nuevo: {date} → {unban_date}) por {admin}")
 
             # Actualizar estados de baneos existentes
             baneos_actuales_web = set()
