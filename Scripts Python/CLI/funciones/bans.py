@@ -442,7 +442,7 @@ def obtener_estados_ban_masivo(lista_jugadores, global_bans=None):
                 resultados[jugador] = (mundo, tipo_ban, mundo, True)
         elif tiene_historial:
             # Solo historial, no baneos activos
-            resultados[jugador] = (None, None, None, False)
+            resultados[jugador] = (None, None, None, True)  # ✅ CORREGIDO: True cuando hay historial
         else:
             # Sin baneos
             resultados[jugador] = (None, None, None, False)

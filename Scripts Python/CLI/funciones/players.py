@@ -1,10 +1,12 @@
 from utils.selenium import *
 from utils.config import COOKIES_FILE
+import utils.config
 from funciones.extra import *
 from funciones.coincidencias import analizar_coincidencias_simple
 from funciones.registro import *
 from funciones.resumen import *
 from funciones.recursos import *
+from funciones.bans import cargar_bans_global, generar_mensaje_historial_baneos, obtener_color_mensaje_ban
 from utils.stealth import get_random_headers, human_delay, add_mouse_simulation
 import requests
 import os
@@ -142,6 +144,19 @@ def mostrar_info_jugador(html):
             "Tribe": "🛡️"
         }.get(campo, "")
         print(f"  {emoji} {campo}: {info.get(campo, '')}")
+    
+    # 🚫 INFORMACIÓN DE BANEOS
+    if nombre:
+        try:
+            global_bans = cargar_bans_global()
+            mensaje_historial = generar_mensaje_historial_baneos(nombre, global_bans, utils.config.WORLD)
+            color_mensaje = obtener_color_mensaje_ban(mensaje_historial)
+            
+            # Mostrar información de baneos con el color apropiado
+            print(f"  🚫 Baneos: {color_texto(mensaje_historial, color_mensaje)}")
+        except Exception as e:
+            print(f"  🚫 Baneos: {color_texto('Error al verificar baneos', 'gris')}")
+    
     print("═" * 55)
 
     # Copiar la ID al portapapeles si existe
